@@ -1,0 +1,6 @@
+.idea/
+.venv
+env
+__pycache__/
+twitch_token.json
+config.old.py

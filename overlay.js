@@ -42,13 +42,13 @@ function updateTimerArc() {
 }
 
 function setHp(idx, hp, maxHp) {
-  const pct = Math.max(0, hp / maxHp * 100);
+  const pct = Math.max(0, hp / maxHp * 50);
   $(`hp${idx}-val`).textContent = hp;
   $(`hp${idx}-max`).textContent = maxHp;
   const bar = $(`hp${idx}-bar`);
   bar.style.width = pct + '%';
-  if (pct < 25)      bar.style.background = '#e63946';
-  else if (pct < 50) bar.style.background = '#f5c400';
+  if (pct < 10)      bar.style.background = '#e63946';
+  else if (pct < 25) bar.style.background = '#f5c400';
   else               bar.style.background = idx === 1 ? '#e63946' : '#457bff';
 }
 

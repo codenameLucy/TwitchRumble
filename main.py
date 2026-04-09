@@ -11,9 +11,11 @@ from config import (
 )
 from auth import get_valid_token, maybe_refresh, get_broadcaster_id
 from eventsub import run_eventsub
+import os, sys
 
 # Set by main() after auth, used by fetch_avatars
 _api_token: str = ""
+
 
 async def fetch_avatars(*usernames: str) -> dict[str, str]:
     """
@@ -38,249 +40,72 @@ async def fetch_avatars(*usernames: str) -> dict[str, str]:
         print(f"[API] Failed to fetch avatars: {e}")
         return {u: "" for u in usernames}
 
+
 # ──────────────────────────────────────────────
-#  GAME DATA
+#  GAME DATA — loaded from JSON files at startup
 # ──────────────────────────────────────────────
 
-TYPES = [
-    "Fire", "Water", "Grass", "Electric", "Ice",
-    "Fighting", "Poison", "Ground", "Flying", "Psychic",
-    "Bug", "Rock", "Ghost", "Dragon", "Dark", "Steel", "Fairy", "Normal"
-]
 
-# Simplified type chart: (attacker_type, defender_type) -> multiplier
-# 2.0 = super effective, 0.5 = not very effective, 0.0 = immune
-TYPE_CHART: dict[tuple[str, str], float] = {
-    ("Fire",     "Grass"):    2.0,
-    ("Fire",     "Ice"):      2.0,
-    ("Fire",     "Bug"):      2.0,
-    ("Fire",     "Steel"):    2.0,
-    ("Fire",     "Water"):    0.5,
-    ("Fire",     "Fire"):     0.5,
-    ("Fire",     "Rock"):     0.5,
-    ("Fire",     "Dragon"):   0.5,
+def _load_type_chart(path: str) -> dict[tuple[str, str], float]:
+    """
+    Load type matchups from typechart.json.
+    Each matchup is [attacker, defender, multiplier].
+    Returns a dict keyed by (attacker, defender) tuples.
+    """
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    chart = {}
+    for entry in data.get("matchups", []):
+        if len(entry) != 3:
+            raise ValueError(f"Bad matchup entry {entry!r} — expected [attacker, defender, multiplier]")
+        attacker, defender, multiplier = entry
+        chart[(str(attacker), str(defender))] = float(multiplier)
+    return chart
 
-    ("Water",    "Fire"):     2.0,
-    ("Water",    "Ground"):   2.0,
-    ("Water",    "Rock"):     2.0,
-    ("Water",    "Water"):    0.5,
-    ("Water",    "Grass"):    0.5,
-    ("Water",    "Dragon"):   0.5,
 
-    ("Grass",    "Water"):    2.0,
-    ("Grass",    "Ground"):   2.0,
-    ("Grass",    "Rock"):     2.0,
-    ("Grass",    "Fire"):     0.5,
-    ("Grass",    "Grass"):    0.5,
-    ("Grass",    "Poison"):   0.5,
-    ("Grass",    "Flying"):   0.5,
-    ("Grass",    "Bug"):      0.5,
-    ("Grass",    "Dragon"):   0.5,
-    ("Grass",    "Steel"):    0.5,
+def _load_move_pool(path: str) -> list[tuple]:
+    """
+    Load moves from movepool.json.
+    Returns a list of (name, type, power, desc) tuples.
+    """
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    pool = []
+    for m in data.get("moves", []):
+        missing = [k for k in ("name", "type", "power", "desc") if k not in m]
+        if missing:
+            raise ValueError(f"Move {m.get('name', '?')!r} is missing fields: {missing}")
+        pool.append((m["name"], m["type"], int(m["power"]), m["desc"]))
+    return pool
 
-    ("Electric", "Water"):    2.0,
-    ("Electric", "Flying"):   2.0,
-    ("Electric", "Ground"):   0.0,
-    ("Electric", "Grass"):    0.5,
-    ("Electric", "Electric"): 0.5,
-    ("Electric", "Dragon"):   0.5,
 
-    ("Ice",      "Grass"):    2.0,
-    ("Ice",      "Ground"):   2.0,
-    ("Ice",      "Flying"):   2.0,
-    ("Ice",      "Dragon"):   2.0,
-    ("Ice",      "Fire"):     0.5,
-    ("Ice",      "Water"):    0.5,
-    ("Ice",      "Ice"):      0.5,
-    ("Ice",      "Steel"):    0.5,
+def _derive_types(chart: dict[tuple[str, str], float]) -> list[str]:
+    """Derive the full set of type names from all attacker/defender names in the chart."""
+    types: set[str] = set()
+    for attacker, defender in chart:
+        types.add(attacker)
+        types.add(defender)
+    return sorted(types)
 
-    ("Fighting", "Normal"):   2.0,
-    ("Fighting", "Ice"):      2.0,
-    ("Fighting", "Rock"):     2.0,
-    ("Fighting", "Dark"):     2.0,
-    ("Fighting", "Steel"):    2.0,
-    ("Fighting", "Poison"):   0.5,
-    ("Fighting", "Flying"):   0.5,
-    ("Fighting", "Psychic"):  0.5,
-    ("Fighting", "Bug"):      0.5,
-    ("Fighting", "Fairy"):    0.5,
-    ("Fighting", "Ghost"):    0.0,
 
-    ("Poison",   "Grass"):    2.0,
-    ("Poison",   "Fairy"):    2.0,
-    ("Poison",   "Poison"):   0.5,
-    ("Poison",   "Ground"):   0.5,
-    ("Poison",   "Rock"):     0.5,
-    ("Poison",   "Ghost"):    0.5,
-    ("Poison",   "Steel"):    0.0,
+# Resolve paths relative to this file so the bot works regardless of
+# which directory you run `python main.py` from.
+_base = os.path.dirname(os.path.abspath(__file__))
 
-    ("Ground",   "Fire"):     2.0,
-    ("Ground",   "Electric"): 2.0,
-    ("Ground",   "Poison"):   2.0,
-    ("Ground",   "Rock"):     2.0,
-    ("Ground",   "Steel"):    2.0,
-    ("Ground",   "Grass"):    0.5,
-    ("Ground",   "Bug"):      0.5,
-    ("Ground",   "Flying"):   0.0,
+try:
+    TYPE_CHART = _load_type_chart(os.path.join(_base, "typechart.json"))
+    MOVE_POOL = _load_move_pool(os.path.join(_base, "movepool.json"))
+    TYPES = _derive_types(TYPE_CHART)
+    print(f"[Data] Loaded {len(TYPES)} types, {len(TYPE_CHART)} matchups, {len(MOVE_POOL)} moves.")
+except FileNotFoundError as e:
+    sys.exit(
+        f"[Data] Missing data file: {e}\nMake sure typechart.json and movepool.json are in the same folder as main.py.")
+except (KeyError, ValueError, json.JSONDecodeError) as e:
+    sys.exit(f"[Data] Malformed data file: {e}")
 
-    ("Flying",   "Grass"):    2.0,
-    ("Flying",   "Fighting"): 2.0,
-    ("Flying",   "Bug"):      2.0,
-    ("Flying",   "Electric"): 0.5,
-    ("Flying",   "Rock"):     0.5,
-    ("Flying",   "Steel"):    0.5,
+if len(MOVE_POOL) < 4:
+    sys.exit("[Data] movepool.json must contain at least 4 moves to run a fight.")
 
-    ("Psychic",  "Fighting"): 2.0,
-    ("Psychic",  "Poison"):   2.0,
-    ("Psychic",  "Psychic"):  0.5,
-    ("Psychic",  "Steel"):    0.5,
-    ("Psychic",  "Dark"):     0.0,
-
-    ("Bug",      "Grass"):    2.0,
-    ("Bug",      "Psychic"): 2.0,
-    ("Bug",      "Dark"):     2.0,
-    ("Bug",      "Fire"):     0.5,
-    ("Bug",      "Fighting"): 0.5,
-    ("Bug",      "Flying"):   0.5,
-    ("Bug",      "Ghost"):    0.5,
-    ("Bug",      "Steel"):    0.5,
-    ("Bug",      "Fairy"):    0.5,
-
-    ("Rock",     "Fire"):     2.0,
-    ("Rock",     "Ice"):      2.0,
-    ("Rock",     "Flying"):   2.0,
-    ("Rock",     "Bug"):      2.0,
-    ("Rock",     "Fighting"): 0.5,
-    ("Rock",     "Ground"):   0.5,
-    ("Rock",     "Steel"):    0.5,
-
-    ("Ghost",    "Psychic"):  2.0,
-    ("Ghost",    "Ghost"):    2.0,
-    ("Ghost",    "Normal"):   0.0,
-    ("Ghost",    "Dark"):     0.5,
-
-    ("Dragon",   "Dragon"):   2.0,
-    ("Dragon",   "Steel"):    0.5,
-    ("Dragon",   "Fairy"):    0.0,
-
-    ("Dark",     "Psychic"):  2.0,
-    ("Dark",     "Ghost"):    2.0,
-    ("Dark",     "Fighting"): 0.5,
-    ("Dark",     "Dark"):     0.5,
-    ("Dark",     "Fairy"):    0.5,
-
-    ("Steel",    "Ice"):      2.0,
-    ("Steel",    "Rock"):     2.0,
-    ("Steel",    "Fairy"):    2.0,
-    ("Steel",    "Fire"):     0.5,
-    ("Steel",    "Water"):    0.5,
-    ("Steel",    "Electric"): 0.5,
-    ("Steel",    "Steel"):    0.5,
-
-    ("Fairy",    "Fighting"): 2.0,
-    ("Fairy",    "Dragon"):   2.0,
-    ("Fairy",    "Dark"):     2.0,
-    ("Fairy",    "Fire"):     0.5,
-    ("Fairy",    "Poison"):   0.5,
-    ("Fairy",    "Steel"):    0.5,
-
-    ("Normal",   "Rock"):     0.5,
-    ("Normal",   "Steel"):    0.5,
-    ("Normal",   "Ghost"):    0.0,
-}
-
-MOVE_POOL = [
-    # name, type, base_power, description
-    ("Inferno Punch",   "Fire",     80, "A scorching straight"),
-    ("Ember Jab",       "Fire",     50, "A quick fiery jab"),
-    ("Blaze Kick",      "Fire",     75, "Blazing roundhouse kick"),
-    ("Heat Haymaker",   "Fire",     90, "Slow but fiery haymaker"),
-
-    ("Aqua Slam",       "Water",    80, "A drenching body slam"),
-    ("Tidal Hook",      "Water",    65, "Surging hook shot"),
-    ("Whirlpool Spin",  "Water",    55, "Spinning water attack"),
-    ("Hydro Uppercut",  "Water",    85, "Rising water uppercut"),
-
-    ("Leaf Slash",      "Grass",    60, "Sharp leaf-edge strike"),
-    ("Vine Whip",       "Grass",    45, "Quick vine lash"),
-    ("Solar Smash",     "Grass",    90, "Powered-up solar blow"),
-    ("Petal Barrage",   "Grass",    55, "Rapid petal flurry"),
-
-    ("Thunder Cross",   "Electric", 85, "Electric cross punch"),
-    ("Spark Jab",       "Electric", 50, "Zapping quick jab"),
-    ("Volt Tackle",     "Electric", 95, "Reckless electric charge"),
-    ("Static Stomp",    "Electric", 65, "Ground-shaking stomp"),
-
-    ("Ice Fist",        "Ice",      75, "Frozen knuckle punch"),
-    ("Frost Kick",      "Ice",      65, "Freezing kick"),
-    ("Blizzard Rush",   "Ice",      85, "Icy charging assault"),
-    ("Hail Hammer",     "Ice",      90, "Frozen overhead smash"),
-
-    ("Mach Punch",      "Fighting", 40, "Ultra-fast jab"),
-    ("Close Combat",    "Fighting", 95, "All-out fighting flurry"),
-    ("Superpower",      "Fighting", 90, "Incredible strength hit"),
-    ("Focus Blast",     "Fighting", 80, "Charged power punch"),
-
-    ("Poison Jab",      "Poison",   80, "Toxic-tipped strike"),
-    ("Sludge Bomb",     "Poison",   65, "Toxic goop thrown"),
-    ("Venom Drip",      "Poison",   55, "Corrosive venom splash"),
-    ("Toxic Fang",      "Poison",   70, "Venomous bite attack"),
-
-    ("Earthquake",      "Ground",   95, "Ground-shaking stomp"),
-    ("Mud Slam",        "Ground",   65, "Muddy heavy slam"),
-    ("Sand Tomb",       "Ground",   55, "Trapping sand whirl"),
-    ("Bulldoze",        "Ground",   75, "Heavy ground stomp"),
-
-    ("Aerial Ace",      "Flying",   70, "Swift aerial strike"),
-    ("Wing Smash",      "Flying",   85, "Powerful wing blow"),
-    ("Gust Spin",       "Flying",   50, "Whirling gust attack"),
-    ("Sky Uppercut",    "Flying",   80, "Leaping sky punch"),
-
-    ("Psyblast",        "Psychic",  80, "Mental energy burst"),
-    ("Mind Crush",      "Psychic",  90, "Telekinetic squeeze"),
-    ("Zen Strike",      "Psychic",  70, "Focused psychic hit"),
-    ("Future Sight",    "Psychic",  85, "Predicted strike"),
-
-    ("Bug Bite",        "Bug",      60, "Sharp mandible bite"),
-    ("Signal Beam",     "Bug",      75, "Confusing beam attack"),
-    ("X-Scissor",       "Bug",      80, "Cross cutting strike"),
-    ("Megahorn",        "Bug",      85, "Massive horn stab"),
-
-    ("Rock Slide",      "Rock",     75, "Raining rock barrage"),
-    ("Stone Edge",      "Rock",     90, "Sharp stone pierce"),
-    ("Rock Blast",      "Rock",     65, "Multiple rock shots"),
-    ("Power Gem",       "Rock",     80, "Gem-powered strike"),
-
-    ("Shadow Ball",     "Ghost",    80, "Dark energy sphere"),
-    ("Phantom Force",   "Ghost",    90, "Ghostly dive attack"),
-    ("Hex",             "Ghost",    65, "Cursed ghostly strike"),
-    ("Shadow Punch",    "Ghost",    70, "Invisible ghost punch"),
-
-    ("Dragon Claw",     "Dragon",   80, "Fierce dragon swipe"),
-    ("Outrage",         "Dragon",   95, "Rampaging dragon fury"),
-    ("Dragon Rush",     "Dragon",   85, "Charging dragon blow"),
-    ("Draco Meteor",    "Dragon",   90, "Meteor-powered strike"),
-
-    ("Crunch",          "Dark",     80, "Crushing dark bite"),
-    ("Night Slash",     "Dark",     70, "Shadowy blade slash"),
-    ("Sucker Punch",    "Dark",     65, "Surprise dark strike"),
-    ("Foul Play",       "Dark",     85, "Uses foe's strength"),
-
-    ("Iron Head",       "Steel",    80, "Steel-hard headbutt"),
-    ("Flash Cannon",    "Steel",    80, "Steel energy beam"),
-    ("Meteor Mash",     "Steel",    90, "Meteor-speed punch"),
-    ("Gyro Ball",       "Steel",    75, "Spinning steel orb"),
-
-    ("Moonblast",       "Fairy",    85, "Moonlight energy beam"),
-    ("Play Rough",      "Fairy",    90, "Ferocious fairy tackle"),
-    ("Dazzling Gleam",  "Fairy",    75, "Blinding fairy flash"),
-    ("Fairy Wind",      "Fairy",    45, "Gentle fairy gust"),
-
-    ("Body Slam",       "Normal",   85, "Full weight body drop"),
-    ("Hyper Beam",      "Normal",   90, "Powerful energy beam"),
-    ("Quick Attack",    "Normal",   40, "Blindingly fast strike"),
-    ("Double-Edge",     "Normal",   95, "Reckless full charge"),
-]
 
 # ──────────────────────────────────────────────
 #  FIGHTER CLASS
@@ -315,7 +140,7 @@ def calc_damage(attacker: Fighter, move_idx: int, defender: Fighter) -> tuple[in
     """Returns (damage, effectiveness_multiplier)."""
     move = attacker.moves[move_idx]
     base_power = move[2]
-    move_type  = move[1]
+    move_type = move[1]
     multi = TYPE_CHART.get((move_type, defender.type), 1.0)
     # Random variance ±10%
     variance = random.uniform(0.9, 1.1)
@@ -329,6 +154,7 @@ def calc_damage(attacker: Fighter, move_idx: int, defender: Fighter) -> tuple[in
 
 connected_clients: set = set()
 
+
 async def ws_handler(websocket):
     connected_clients.add(websocket)
     try:
@@ -336,10 +162,12 @@ async def ws_handler(websocket):
     finally:
         connected_clients.discard(websocket)
 
+
 async def broadcast(msg: dict):
     if connected_clients:
         data = json.dumps(msg)
         await asyncio.gather(*[c.send(data) for c in connected_clients], return_exceptions=True)
+
 
 # ──────────────────────────────────────────────
 #  FIGHT ENGINE
@@ -413,8 +241,10 @@ class FightEngine:
             await broadcast({
                 "event": "round_result",
                 "round": self.round,
-                "fighter1": {**self.fighter1.to_dict(), "move_used": self.fighter1.choice, "damage_dealt": dmg1, "effectiveness": multi1},
-                "fighter2": {**self.fighter2.to_dict(), "move_used": self.fighter2.choice, "damage_dealt": dmg2, "effectiveness": multi2},
+                "fighter1": {**self.fighter1.to_dict(), "move_used": self.fighter1.choice, "damage_dealt": dmg1,
+                             "effectiveness": multi1},
+                "fighter2": {**self.fighter2.to_dict(), "move_used": self.fighter2.choice, "damage_dealt": dmg2,
+                             "effectiveness": multi2},
             })
 
             await asyncio.sleep(4)
@@ -446,7 +276,9 @@ class FightEngine:
         elif self.fighter2 and self.fighter2.name == username and self.fighter2.choice is None:
             self.fighter2.choice = choice
 
+
 fight_engine = FightEngine()
+
 
 # ──────────────────────────────────────────────
 #  TWITCH IRC
@@ -465,12 +297,13 @@ async def handle_line(line: str, chat):
 
     tags_raw, username, message = msg_match.groups()
     username = username.lower()
-    message  = message.strip()
+    message = message.strip()
 
     # ── Move selection (1–4) during active fight ──
     # Redemption joining is handled by EventSub, not IRC.
     if fight_engine.active and message in ("1", "2", "3", "4"):
         fight_engine.set_choice(username, int(message) - 1)
+
 
 # ──────────────────────────────────────────────
 #  EVENTSUB REDEMPTION CALLBACK
@@ -478,6 +311,7 @@ async def handle_line(line: str, chat):
 
 # irc_chat_fn is set by main() so on_redemption can send chat messages
 _irc_chat = None
+
 
 async def on_redemption(username: str):
     """Called by EventSub when the configured reward is redeemed."""
@@ -502,6 +336,7 @@ async def on_redemption(username: str):
                     f"🥊 Both fighters ready! {fight_engine.queue[0]} vs {fight_engine.queue[1]} — FIGHT!"
                 )
             asyncio.create_task(fight_engine.start_fight())
+
 
 # ──────────────────────────────────────────────
 #  MAIN
@@ -584,7 +419,7 @@ async def main():
                     If no PONG arrives, close writer to trigger reconnect.
                     """
                     PING_INTERVAL = 30
-                    PONG_TIMEOUT  = 10
+                    PONG_TIMEOUT = 10
                     while True:
                         await asyncio.sleep(PING_INTERVAL)
                         pong_event.clear()
@@ -675,6 +510,7 @@ async def main():
         run_eventsub(TWITCH_CLIENT_ID, token, broadcaster_id, CHANNEL_POINT_REWARD_TITLE, on_redemption),
         token_refresh_loop(),
     )
+
 
 if __name__ == "__main__":
     asyncio.run(main())

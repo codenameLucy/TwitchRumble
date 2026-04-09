@@ -7,14 +7,14 @@
 # Register your app at: https://dev.twitch.tv/console/apps
 # Set the OAuth Redirect URL to: https://localhost:3000
 # No client secret is needed — we use the Device Code flow.
-TWITCH_CLIENT_ID = ""
+TWITCH_CLIENT_ID = "tp7gmjwmrt9ohluetrf3av4x1cgkcl"
 
 # The Twitch username of your bot account (or your own account).
 # This must match the account that authorizes via the browser.
-TWITCH_NICK = ""
+TWITCH_NICK = "lucycecidit"
 
 # Your Twitch channel name (lowercase).
-TWITCH_CHANNEL = ""
+TWITCH_CHANNEL = "lucycecidit"
 
 # The EXACT title of the channel point reward chatters redeem to join the ring.
 # Must match your reward title on the Twitch Dashboard exactly.

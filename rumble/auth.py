@@ -9,7 +9,7 @@ import time
 import os
 import aiohttp
 
-TOKEN_FILE = "twitch_token.json"
+TOKEN_FILE = "configs/twitch_token.json"
 
 # Scopes needed: read/send chat + listen to channel point redemptions
 SCOPES = "chat:read chat:edit channel:read:redemptions"

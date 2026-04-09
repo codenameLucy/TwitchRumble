@@ -2,4 +2,4 @@
 .venv
 env
 __pycache__/
-twitch_token.json
+configs/twitch_token.json

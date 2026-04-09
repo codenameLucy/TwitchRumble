@@ -142,3 +142,12 @@ To **add a completely new type**, add matchup entries that reference it — the 
 | `overlay.js` | Overlay WebSocket logic and event handling |
 | `requirements.txt` | Python dependencies |
 | `twitch_token.json` | Auto-created on first run, stores your OAuth token |
+
+## Testing
+
+the test script can be run using the following command:
+```shell
+    python test_fight.py --fighters "StreamerA" "StreamerB"
+```
+
+the args and how to use is documented in the file itself.

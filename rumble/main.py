@@ -4,13 +4,13 @@ import random
 import websockets
 import re
 import aiohttp
-from config import (
+from rumble.config import (
     TWITCH_CLIENT_ID, TWITCH_NICK, TWITCH_CHANNEL,
     CHANNEL_POINT_REWARD_TITLE,
     WS_HOST, WS_PORT
 )
-from auth import get_valid_token, maybe_refresh, get_broadcaster_id
-from eventsub import run_eventsub
+from rumble.auth import get_valid_token, maybe_refresh, get_broadcaster_id
+from rumble.eventsub import run_eventsub
 import os, sys
 
 # Set by main() after auth, used by fetch_avatars
@@ -93,8 +93,8 @@ def _derive_types(chart: dict[tuple[str, str], float]) -> list[str]:
 _base = os.path.dirname(os.path.abspath(__file__))
 
 try:
-    TYPE_CHART = _load_type_chart(os.path.join(_base, "typechart.json"))
-    MOVE_POOL = _load_move_pool(os.path.join(_base, "movepool.json"))
+    TYPE_CHART = _load_type_chart(os.path.join(_base, "../configs/typechart.json"))
+    MOVE_POOL = _load_move_pool(os.path.join(_base, "../configs/movepool.json"))
     TYPES = _derive_types(TYPE_CHART)
     print(f"[Data] Loaded {len(TYPES)} types, {len(TYPE_CHART)} matchups, {len(MOVE_POOL)} moves.")
 except FileNotFoundError as e:

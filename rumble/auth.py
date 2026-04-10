@@ -7,9 +7,17 @@ import asyncio
 import json
 import time
 import os
+import sys
 import aiohttp
 
-TOKEN_FILE = "configs/twitch_token.json"
+# Resolve the configs directory relative to the executable (or repo root when
+# running from source). sys.executable points to the .exe inside a PyInstaller
+# bundle, and to the python interpreter when running from source — both cases
+# end up finding the configs/ folder in the right place.
+_exe_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, 'frozen', False) else __file__))
+_configs_dir = os.path.join(_exe_dir, "configs")
+os.makedirs(_configs_dir, exist_ok=True)
+TOKEN_FILE = os.path.join(_configs_dir, "twitch_token.json")
 
 # Scopes needed: read/send chat + listen to channel point redemptions
 SCOPES = "chat:read chat:edit channel:read:redemptions"
@@ -55,11 +63,10 @@ async def _poll_for_token(
             return result
         msg = result.get("message", "")
         if msg == "authorization_pending":
-            continue  # user hasn't clicked yet
+            continue
         if msg == "slow_down":
             interval += 5
             continue
-        # Any other error (expired, denied, etc.)
         print(f"[Auth] Error during polling: {result}")
         return None
     print("[Auth] Device code expired.")
@@ -115,14 +122,11 @@ async def get_valid_token(client_id: str) -> str:
 
         saved = _load_token()
 
-        # ── Try refresh if we have a saved token ──
         if saved and saved.get("client_id") == client_id:
-            # Still valid with >60s buffer?
             if saved["expires_at"] - time.time() > 60:
                 print("[Auth] Using saved access token.")
                 return saved["access_token"]
 
-            # Expired — try refresh
             if saved.get("refresh_token"):
                 print("[Auth] Access token expired, refreshing…")
                 refreshed = await _refresh_token(session, client_id, saved["refresh_token"])
@@ -131,7 +135,6 @@ async def get_valid_token(client_id: str) -> str:
                     return refreshed["access_token"]
                 print("[Auth] Refresh failed, starting new auth flow.")
 
-        # ── Full Device Code Flow ──
         print("[Auth] Starting Twitch Device Code authorization…")
         device = await _start_device_flow(session, client_id)
 
@@ -165,10 +168,7 @@ async def get_valid_token(client_id: str) -> str:
 
 
 async def get_broadcaster_id(client_id: str, access_token: str, channel_name: str) -> str:
-    """
-    Resolve a channel login name to its Twitch user ID.
-    EventSub subscriptions require the numeric broadcaster_user_id, not the name.
-    """
+    """Resolve a channel login name to its Twitch user ID."""
     url = f"https://api.twitch.tv/helix/users?login={channel_name}"
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -184,15 +184,12 @@ async def get_broadcaster_id(client_id: str, access_token: str, channel_name: st
 
 
 async def maybe_refresh(client_id: str) -> str | None:
-    """
-    Call this periodically to keep the token fresh.
-    Returns new token if refreshed, None if still valid.
-    """
+    """Call periodically to keep the token fresh."""
     saved = _load_token()
     if not saved:
         return None
-    if saved["expires_at"] - time.time() > 300:  # 5 min buffer
-        return None  # still fine
+    if saved["expires_at"] - time.time() > 300:
+        return None
 
     async with aiohttp.ClientSession() as session:
         refreshed = await _refresh_token(session, client_id, saved["refresh_token"])

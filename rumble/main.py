@@ -16,15 +16,61 @@ if getattr(sys, 'frozen', False):
 else:
     _configs = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../configs")
 
-with open(os.path.join(_configs, "config.json"), encoding="utf-8") as _f:
-    _cfg = json.load(_f)
+def _fatal(message: str):
+    print(f"\n{'=' * 60}")
+    print("  ERROR")
+    print(f"{'=' * 60}")
+    print(f"\n{message}\n")
+    print(f"{'=' * 60}")
+    sys.exit(1)
 
-TWITCH_CLIENT_ID = _cfg["twitch_client_id"]
-TWITCH_NICK = _cfg["twitch_nick"]
-TWITCH_CHANNEL = _cfg["twitch_channel"]
-CHANNEL_POINT_REWARD_TITLE = _cfg["channel_point_reward_title"]
-WS_HOST = _cfg["ws_host"]
-WS_PORT = _cfg["ws_port"]
+
+try:
+    with open(os.path.join(_configs, "config.json"), encoding="utf-8") as _f:
+        _cfg = json.load(_f)
+except FileNotFoundError:
+    _fatal(
+        "config.json not found.\n\n"
+        "To fix this:\n"
+        "  1. Go to the configs folder\n"
+        "  2. Copy config.template.json and rename the copy to config.json\n"
+        "  3. Open config.json in a text editor and fill in your details\n\n"
+        "If this keeps happening, please open an issue at:\n"
+        "  https://github.com/lucy-cecidit/twitchrumble/issues"
+    )
+except json.JSONDecodeError as e:
+    _fatal(
+        f"config.json contains invalid JSON and could not be read.\n\n"
+        f"Error: {e}\n\n"
+        "Open config.json in a text editor and check for missing commas,\n"
+        "unclosed brackets, or stray characters.\n\n"
+        "If you're unsure, delete config.json, copy config.template.json again,\n"
+        "and re-enter your values.\n\n"
+        "If this keeps happening, please open an issue at:\n"
+        "  https://github.com/lucy-cecidit/twitchrumble/issues"
+    )
+except Exception as e:
+    _fatal(
+        f"An unexpected error occurred while loading config.json.\n\n"
+        f"Error: {e}\n\n"
+        "If this keeps happening, please open an issue at:\n"
+        "  https://github.com/lucy-cecidit/twitchrumble/issues"
+    )
+
+try:
+    TWITCH_CLIENT_ID = _cfg["twitch_client_id"]
+    TWITCH_NICK = _cfg["twitch_nick"]
+    TWITCH_CHANNEL = _cfg["twitch_channel"]
+    CHANNEL_POINT_REWARD_TITLE = _cfg["channel_point_reward_title"]
+    WS_HOST = _cfg["ws_host"]
+    WS_PORT = _cfg["ws_port"]
+except KeyError as e:
+    _fatal(
+        f"config.json is missing a required field: {e}\n\n"
+        "Make sure your config.json contains all fields from config.template.json.\n\n"
+        "If this keeps happening, please open an issue at:\n"
+        "  https://github.com/lucy-cecidit/twitchrumble/issues"
+    )
 
 # Set by main() after auth, used by fetch_avatars
 _api_token: str = ""
@@ -522,4 +568,17 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nShutting down.")
+    except Exception as e:
+        print(f"\n{'=' * 60}")
+        print("  UNEXPECTED ERROR")
+        print(f"{'=' * 60}")
+        print(f"\n{e}\n")
+        print("Please open an issue at:")
+        print("  https://github.com/lucy-cecidit/twitchrumble/issues")
+        print(f"{'=' * 60}")
+    finally:
+        input("\nPress Enter to close...")

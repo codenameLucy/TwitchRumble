@@ -44,7 +44,8 @@ In configs, copy `config.template.json` and rename the copy to `config.json`. Op
 Double-click `main.exe` to start the bot.
 
 On first run, it will print a Twitch URL and a short code in the terminal. Open the URL in your browser, enter the code, and click **Authorize**. The token is saved automatically and refreshed on future runs — you only do this once.
-Closing it will turn of the program. Once your stream is done and you no longer want the overlay to work you can safely close it by pressing the x button or by pressing ctrl+c
+
+Closing `main.exe` will turn off the program. Once your stream is done and you no longer want the overlay to work you can safely close it by pressing the x button or by pressing ctrl+c
 
 ---
 

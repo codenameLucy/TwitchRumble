@@ -6,45 +6,43 @@ A Pokémon-style fight overlay for Twitch streams where chatters battle via chan
 
 ## Setup
 
-### 1. Install Python dependencies
-```bash
-pip install -r requirements.txt
-```
+### 1. Download the latest release
 
-### 2. Configure `config.py`
-Edit these values:
+Go to the [Releases](../../releases) page and download the latest `twitchrumble-vX.X.X.zip`. Extract it anywhere you like.
+
+### 2. Configure `config.json`
+
+Inside the extracted folder, copy `configs/config.template.json` and rename the copy to `configs/config.json`. Open it in any text editor and fill in your values:
 
 | Setting | Description |
 |---|---|
-| `TWITCH_CLIENT_ID` | Your app's Client ID from https://dev.twitch.tv/console/apps |
-| `TWITCH_NICK` | The Twitch account username you'll authorize as |
-| `TWITCH_CHANNEL` | Your channel name (lowercase) |
-| `CHANNEL_POINT_REWARD_TITLE` | Exact title of your channel point reward |
+| `twitch_client_id` | Your app's Client ID from https://dev.twitch.tv/console/apps |
+| `twitch_nick` | The Twitch account username you'll authorize as |
+| `twitch_channel` | Your channel name (lowercase) |
+| `channel_point_reward_title` | Exact title of your channel point reward |
+| `ws_host` | Leave as `localhost` unless you know what you are doing |
+| `ws_port` | Leave as `8765` unless you know what you are doing |
 
 > **Registering your app:** Go to https://dev.twitch.tv/console/apps → Register Your Application.  
 > Set the OAuth Redirect URL to `http://localhost:3000`. No client secret needed.
 
-### 3. First-time authorization
-On first run, the bot will print a Twitch URL and a short code in the terminal.  
-Open the URL in your browser, enter the code, and click **Authorize**.  
-The token is saved to `twitch_token.json` and auto-refreshed on future runs — you only do this once.
+### 3. Create your Channel Point Reward
 
-### 4. Create your Channel Point Reward
 On Twitch Dashboard → Channel Points → Manage Rewards:
-- Create a reward with the **exact same title** as `CHANNEL_POINT_REWARD_TITLE` in `config.py`
-- Recommended: limit to 1 redemption per user per stream
+- Create a reward with the **exact same title** as `channel_point_reward_title` in your `config.json`
 
-### 5. Add the overlay to OBS
+### 4. Add the overlay to OBS
+
 - Add a **Browser Source**
-- Check **Local File** and browse to `overlay.html`
+- Check **Local File** and browse to `web/overlay.html`
 - Set width to **1920** and height to **1080**
-- Make sure `overlay.html`, `overlay.css`, and `overlay.js` are all in the **same folder**
 - Enable **Shutdown source when not visible** (optional)
 
-### 6. Run the bot
-```bash
-python main.py
-```
+### 5. Run the bot
+
+Double-click `main.exe` to start the bot.
+
+On first run, it will print a Twitch URL and a short code in the terminal. Open the URL in your browser, enter the code, and click **Authorize**. The token is saved automatically and refreshed on future runs — you only do this once.
 
 ---
 
@@ -57,9 +55,9 @@ python main.py
 5. Chatters type **1, 2, 3, or 4** in chat to choose their move
 6. If no input is given, a move is **auto-selected randomly**
 7. Both moves resolve simultaneously — damage is calculated with type effectiveness
-8. Fight continues until one or both fighter(s) reaches 0 HP
 
 ## Type effectiveness
+
 - Super effective (×2.0): Bold announcement on overlay
 - Not very effective (×0.5): Noted in overlay
 - Immune (×0.0): "It had no effect!"
@@ -68,7 +66,7 @@ python main.py
 
 ## Customization
 
-### `move_pool.json` — Adding and removing moves
+### `configs/movepool.json` — Adding and removing moves
 
 Each move is a JSON object in the `moves` array:
 
@@ -84,7 +82,7 @@ Each move is a JSON object in the `moves` array:
 | Field | Description |
 |---|---|
 | `name` | Display name shown on the overlay |
-| `type` | Must match a type that exists in `type_chart.json` |
+| `type` | Must match a type that exists in `typechart.json` |
 | `power` | Base damage (roughly 40–95 is the intended range) |
 | `desc` | Short flavour text shown on the overlay |
 
@@ -92,13 +90,11 @@ To **add a move**, append a new object to the `moves` array following the format
 To **remove a move**, delete its object from the array.  
 You need a minimum of 4 moves in the pool for the fight engine to work.
 
-The `type` field determines type effectiveness — a move with `"type": "Fire"` will deal double damage against a fighter whose assigned type is weak to Fire, based on the matchups in `type_chart.json`.
-
-> **Tip:** You can create entirely custom types (e.g. `"Cosmic"` or `"Shadow"`) by using a new type name in both a move and a matchup entry. The type list is derived automatically — no Python edits needed.
+> **Tip:** You can create entirely custom types (e.g. `"Cosmic"` or `"Shadow"`) by using a new type name in both a move and a matchup entry. The type list is derived automatically.
 
 ---
 
-### `type_chart.json` — Editing type matchups
+### `configs/typechart.json` — Editing type matchups
 
 Each matchup is a 3-element array in the `matchups` array:
 
@@ -116,13 +112,6 @@ The three values are `[attacker_type, defender_type, multiplier]`.
 
 Any type pair **not listed** defaults to `1.0` (normal damage) — you only need to add entries for non-standard matchups.
 
-To **add a matchup**, append a new entry to the `matchups` array:
-```json
-["Shadow", "Psychic", 2.0]
-```
-
-To **remove a matchup**, delete its entry. That pair will then deal normal (×1.0) damage.
-
 To **add a completely new type**, add matchup entries that reference it — the type will automatically appear as a possible fighter type once it exists in the chart.
 
 ---
@@ -131,23 +120,71 @@ To **add a completely new type**, add matchup entries that reference it — the 
 
 | File | Purpose |
 |---|---|
-| `main.py` | Twitch IRC bot + fight engine + WebSocket server |
-| `auth.py` | Twitch Device Code OAuth flow + token refresh |
-| `eventsub.py` | Twitch EventSub WebSocket client for redemption events |
-| `config.py` | All your settings live here |
-| `type_chart.json` | Type effectiveness matchups — edit to customise damage |
-| `move_pool.json` | All available moves — add or remove freely |
-| `overlay.html` | OBS browser source — markup only |
-| `overlay.css` | Overlay styles and animations |
-| `overlay.js` | Overlay WebSocket logic and event handling |
-| `requirements.txt` | Python dependencies |
-| `twitch_token.json` | Auto-created on first run, stores your OAuth token |
+| `main.exe` | The bot — run this to start |
+| `configs/config.template.json` | Copy this to `config.json` and fill in your settings |
+| `configs/config.json` | Your personal settings (you create this from the template) |
+| `configs/typechart.json` | Type effectiveness matchups — edit to customise damage |
+| `configs/movepool.json` | All available moves — add or remove freely |
+| `web/overlay.html` | OBS browser source |
+| `web/overlay.css` | Overlay styles and animations |
+| `web/overlay.js` | Overlay WebSocket logic and event handling |
 
-## Testing
+---
+---
 
-the test script can be run using the following command:
-```shell
-    python test_fight.py --fighters "StreamerA" "StreamerB"
+## Developer notes
+
+### Running from source
+
+Requires Python 3.14+ and [uv](https://github.com/astral-sh/uv).
+
+```bash
+uv sync
+uv run rumble/main.py
 ```
 
-the args and how to use is documented in the file itself.
+### Project structure
+
+| File | Purpose |
+|---|---|
+| `rumble/main.py` | Twitch IRC bot + fight engine + WebSocket server |
+| `rumble/auth.py` | Twitch Device Code OAuth flow + token refresh |
+| `rumble/eventsub.py` | Twitch EventSub WebSocket client for redemption events |
+| `configs/config.template.json` | Committed template — copy to `config.json` to run locally |
+| `configs/typechart.json` | Type effectiveness matchups |
+| `configs/movepool.json` | All available moves |
+| `web/overlay.html` | OBS browser source — markup only |
+| `web/overlay.css` | Overlay styles and animations |
+| `web/overlay.js` | Overlay WebSocket logic and event handling |
+| `main.spec` | PyInstaller build spec |
+| `pyproject.toml` | Project metadata and dependencies |
+
+### Building the exe locally
+
+```bash
+uv run pyinstaller main.spec
+xcopy configs dist\main\configs /E /I /Y
+xcopy web dist\main\web /E /I /Y
+dist\main\main.exe
+```
+
+### Config in development
+
+`configs/config.json` is gitignored. Copy `configs/config.template.json` to `configs/config.json` and fill in your own values. Your local config will never be committed.
+
+### Running tests
+
+```bash
+python tests/test_fight.py --fighters "StreamerA" "StreamerB"
+```
+
+Arguments and usage are documented in the test file itself.
+
+### Releases
+
+Releases are created automatically by the GitHub Actions workflow when a new tag is pushed:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```

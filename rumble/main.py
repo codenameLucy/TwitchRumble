@@ -1,17 +1,30 @@
 import asyncio
 import json
+import os
 import random
-import websockets
 import re
+import sys
+
 import aiohttp
-from rumble.config import (
-    TWITCH_CLIENT_ID, TWITCH_NICK, TWITCH_CHANNEL,
-    CHANNEL_POINT_REWARD_TITLE,
-    WS_HOST, WS_PORT
-)
+import websockets
+
 from rumble.auth import get_valid_token, maybe_refresh, get_broadcaster_id
 from rumble.eventsub import run_eventsub
-import os, sys
+
+if getattr(sys, 'frozen', False):
+    _configs = os.path.join(os.path.dirname(sys.executable), "configs")
+else:
+    _configs = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../configs")
+
+with open(os.path.join(_configs, "config.json"), encoding="utf-8") as _f:
+    _cfg = json.load(_f)
+
+TWITCH_CLIENT_ID = _cfg["twitch_client_id"]
+TWITCH_NICK = _cfg["twitch_nick"]
+TWITCH_CHANNEL = _cfg["twitch_channel"]
+CHANNEL_POINT_REWARD_TITLE = _cfg["channel_point_reward_title"]
+WS_HOST = _cfg["ws_host"]
+WS_PORT = _cfg["ws_port"]
 
 # Set by main() after auth, used by fetch_avatars
 _api_token: str = ""
@@ -87,14 +100,6 @@ def _derive_types(chart: dict[tuple[str, str], float]) -> list[str]:
         types.add(defender)
     return sorted(types)
 
-
-# Resolve paths relative to this file so the bot works regardless of
-# which directory you run `python main.py` from.
-# When frozen by PyInstaller, __file__ is inside a temp dir — use sys.executable instead.
-if getattr(sys, 'frozen', False):
-    _configs = os.path.join(os.path.dirname(sys.executable), "configs")
-else:
-    _configs = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../configs")
 
 try:
     TYPE_CHART = _load_type_chart(os.path.join(_configs, "typechart.json"))

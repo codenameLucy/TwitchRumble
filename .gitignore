@@ -3,5 +3,6 @@
 env
 __pycache__/
 configs/twitch_token.json
+configs/config.json
 dist
 build

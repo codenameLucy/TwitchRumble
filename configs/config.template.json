@@ -1,0 +1,8 @@
+{
+    "twitch_client_id": "",
+    "twitch_nick": "",
+    "twitch_channel": "",
+    "channel_point_reward_title": "",
+    "ws_host": "localhost",
+    "ws_port": 8765
+}

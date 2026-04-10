@@ -10,9 +10,14 @@ A Pokémon-style fight overlay for Twitch streams where chatters battle via chan
 
 Go to the [Releases](../../releases) page and download the latest `twitchrumble-vX.X.X.zip`. Extract it anywhere you like.
 
-### 2. Configure `config.json`
+### 2. Create your Channel Point Reward
 
-Inside the extracted folder, copy `configs/config.template.json` and rename the copy to `configs/config.json`. Open it in any text editor and fill in your values:
+On Twitch Dashboard → Channel Points → Manage Rewards:
+- Create a reward with the **exact same title** as `channel_point_reward_title` in your `config.json`
+
+### 3. Configure `config.json`
+
+In configs, copy `config.template.json` and rename the copy to `config.json`. Open it in any text editor and fill in your values:
 
 | Setting | Description |
 |---|---|
@@ -24,17 +29,13 @@ Inside the extracted folder, copy `configs/config.template.json` and rename the 
 | `ws_port` | Leave as `8765` unless you know what you are doing |
 
 > **Registering your app:** Go to https://dev.twitch.tv/console/apps → Register Your Application.  
-> Set the OAuth Redirect URL to `http://localhost:3000`. No client secret needed.
-
-### 3. Create your Channel Point Reward
-
-On Twitch Dashboard → Channel Points → Manage Rewards:
-- Create a reward with the **exact same title** as `channel_point_reward_title` in your `config.json`
+> Set the OAuth Redirect URL to `https://localhost:3000`. No client secret needed.
+> once your app is registered, click on manage to see the client id
 
 ### 4. Add the overlay to OBS
 
 - Add a **Browser Source**
-- Check **Local File** and browse to `web/overlay.html`
+- Check **Local File** and inside the folder you have extracted, browse to `web/overlay.html`
 - Set width to **1920** and height to **1080**
 - Enable **Shutdown source when not visible** (optional)
 
@@ -43,6 +44,7 @@ On Twitch Dashboard → Channel Points → Manage Rewards:
 Double-click `main.exe` to start the bot.
 
 On first run, it will print a Twitch URL and a short code in the terminal. Open the URL in your browser, enter the code, and click **Authorize**. The token is saved automatically and refreshed on future runs — you only do this once.
+Closing it will turn of the program. Once your stream is done and you no longer want the overlay to work you can safely close it by pressing the x button or by pressing ctrl+c
 
 ---
 

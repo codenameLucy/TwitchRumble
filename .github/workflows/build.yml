@@ -1,0 +1,45 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: '.python-version'
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build exe
+        run: uv run pyinstaller main.spec
+
+      - name: Add configs and web to distribution
+        run: |
+          xcopy configs dist\main\configs /E /I /Y
+          xcopy web dist\main\web /E /I /Y
+
+      - name: Archive distribution
+        run: Compress-Archive -Path dist\main\* -DestinationPath twitchrumble-${{ github.ref_name }}.zip
+        shell: pwsh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: twitchrumble-${{ github.ref_name }}.zip
+          generate_release_notes: true

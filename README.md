@@ -163,9 +163,9 @@ uv run rumble/main.py
 
 ```bash
 uv run pyinstaller main.spec
-xcopy configs dist\main\configs /E /I /Y
-xcopy web dist\main\web /E /I /Y
-dist\main\main.exe
+cp configs dist/main/configs -r
+cp web dist/main/web -r
+./dist/main/main
 ```
 
 ### Config in development

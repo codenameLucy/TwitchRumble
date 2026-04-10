@@ -90,11 +90,15 @@ def _derive_types(chart: dict[tuple[str, str], float]) -> list[str]:
 
 # Resolve paths relative to this file so the bot works regardless of
 # which directory you run `python main.py` from.
-_base = os.path.dirname(os.path.abspath(__file__))
+# When frozen by PyInstaller, __file__ is inside a temp dir — use sys.executable instead.
+if getattr(sys, 'frozen', False):
+    _configs = os.path.join(os.path.dirname(sys.executable), "configs")
+else:
+    _configs = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../configs")
 
 try:
-    TYPE_CHART = _load_type_chart(os.path.join(_base, "../configs/typechart.json"))
-    MOVE_POOL = _load_move_pool(os.path.join(_base, "../configs/movepool.json"))
+    TYPE_CHART = _load_type_chart(os.path.join(_configs, "typechart.json"))
+    MOVE_POOL = _load_move_pool(os.path.join(_configs, "movepool.json"))
     TYPES = _derive_types(TYPE_CHART)
     print(f"[Data] Loaded {len(TYPES)} types, {len(TYPE_CHART)} matchups, {len(MOVE_POOL)} moves.")
 except FileNotFoundError as e:

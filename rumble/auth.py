@@ -14,7 +14,10 @@ import aiohttp
 # running from source). sys.executable points to the .exe inside a PyInstaller
 # bundle, and to the python interpreter when running from source — both cases
 # end up finding the configs/ folder in the right place.
-_exe_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, 'frozen', False) else __file__))
+if getattr(sys, 'frozen', False):
+    _exe_dir = os.path.dirname(sys.executable)
+else:
+    _exe_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _configs_dir = os.path.join(_exe_dir, "configs")
 os.makedirs(_configs_dir, exist_ok=True)
 TOKEN_FILE = os.path.join(_configs_dir, "twitch_token.json")
